@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LIVE Copilot — Control Panel</title>
+<style>
+  :root { --bg:#0f1015; --panel:#181a22; --line:#2a2d38; --text:#e8e9ee; --dim:#8b8fa0;
+          --pink:#fe2c55; --cyan:#25f4ee; --green:#3ddc84; --amber:#ffb020; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 "Segoe UI",system-ui,sans-serif; height:100vh; display:flex; flex-direction:column; }
+  header { display:flex; align-items:center; gap:16px; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--panel); flex-wrap:wrap; }
+  header h1 { font-size:16px; margin:0; }
+  .status { color:var(--dim); font-size:13px; }
+  .status b { color:var(--green); font-weight:600; }
+  .stats { margin-left:auto; color:var(--dim); font-size:13px; }
+  main { flex:1; display:grid; grid-template-columns: 1fr 1.25fr 0.9fr; gap:1px; background:var(--line); min-height:0; }
+  section { background:var(--bg); display:flex; flex-direction:column; min-height:0; }
+  section h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); margin:0; padding:10px 14px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; }
+  .scroll { overflow-y:auto; flex:1; padding:8px 10px; }
+
+  .c { padding:6px 8px; border-radius:8px; margin-bottom:3px; }
+  .c .n { color:var(--cyan); font-weight:600; margin-right:6px; }
+  .c .t { color:var(--dim); font-size:11px; margin-right:6px; }
+  .c.question { background:rgba(37,244,238,.08); }
+  .c.request { background:rgba(255,176,32,.08); }
+  .c.spam, .c.toxic { opacity:.35; text-decoration:line-through; }
+  .tag { font-size:10px; padding:1px 6px; border-radius:6px; margin-left:6px; background:var(--line); color:var(--dim); text-transform:uppercase; }
+
+  .s { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:10px; }
+  .s.p3 { border-color:var(--pink); }
+  .s .meta { font-size:12px; color:var(--dim); margin-bottom:4px; }
+  .s .meta .who { color:var(--cyan); font-weight:600; }
+  .s .q { font-style:italic; margin-bottom:8px; }
+  .s textarea { width:100%; background:#0b0c10; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:8px; font:inherit; font-size:15px; resize:vertical; min-height:52px; }
+  .row { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+  button { background:var(--line); color:var(--text); border:0; border-radius:8px; padding:7px 12px; font:inherit; font-size:13px; cursor:pointer; }
+  button:hover { filter:brightness(1.25); }
+  button.primary { background:var(--pink); font-weight:600; }
+  button.ok { background:#1f6f45; }
+  .unsafe { color:var(--amber); font-size:12px; }
+  .badge { background:var(--pink); color:#fff; border-radius:6px; padding:0 6px; font-size:11px; margin-left:6px; }
+
+  .box { padding:12px 14px; border-bottom:1px solid var(--line); }
+  .box label { font-size:12px; color:var(--dim); display:block; margin-bottom:6px; }
+  .box textarea, .box input[type=text] { width:100%; background:#0b0c10; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:8px; font:inherit; }
+  .onair { background:var(--panel); border-radius:10px; padding:10px; min-height:44px; font-size:13px; }
+  .onair.live { border:1px solid var(--pink); }
+  .switch { display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; }
+  .note { padding:6px 4px; border-bottom:1px dashed var(--line); font-size:13px; }
+  .empty { color:var(--dim); padding:12px 4px; font-size:13px; }
+  .topic { color:var(--pink); font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎙️ LIVE Copilot</h1>
+  <span class="status">Status: <b id="status">…</b></span>
+  <span class="topic" id="topic"></span>
+  <span class="stats" id="stats"></span>
+</header>
+<main>
+  <section>
+    <h2>Live chat</h2>
+    <div class="scroll" id="chat"></div>
+  </section>
+
+  <section>
+    <h2>Suggested replies <span id="scount"></span></h2>
+    <div class="scroll" id="sugs"></div>
+  </section>
+
+  <section>
+    <div class="box">
+      <label>ON SCREEN NOW</label>
+      <div class="onair" id="onair">Nothing on screen</div>
+      <div class="row">
+        <button onclick="post('/api/clear')">Clear overlay</button>
+        <label class="switch"><input type="checkbox" id="auto" onchange="post('/api/auto',{on:this.checked})"> Auto-show top answers</label>
+      </div>
+    </div>
+    <div class="box">
+      <label>PUT YOUR OWN TEXT ON SCREEN</label>
+      <input type="text" id="ann" placeholder="e.g. Code link in bio 👆  ·  Enter = show for 20s">
+      <div class="row">
+        <button class="primary" onclick="announce(false)">Show</button>
+        <button onclick="announce(true)">Pin (stays until cleared)</button>
+      </div>
+    </div>
+    <div class="box">
+      <label>STREAM CONTEXT (helps Claude write better replies)</label>
+      <textarea id="ctx" rows="3" placeholder="e.g. Building a RAG app live in Python. Mic: Shure MV7. Code goes on GitHub after."></textarea>
+      <div class="row"><button onclick="post('/api/context',{text:ctx.value}); this.textContent='Saved ✓'; setTimeout(()=>this.textContent='Save context',1500)">Save context</button></div>
+    </div>
+    <h2>Notes <span id="nfile" style="text-transform:none;letter-spacing:0"></span></h2>
+    <div class="scroll" id="notes"></div>
+  </section>
+</main>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const ctx = $("ctx");
+  let ctxTouched = false; ctx.addEventListener("input", () => ctxTouched = true);
+  let renderedSugIds = "";
+
+  async function post(url, body) {
+    await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  }
+  function announce(pinned) { const t = $("ann").value.trim(); if (t) { post("/api/announce", { text: t, pinned }); $("ann").value = ""; } }
+  $("ann").addEventListener("keydown", e => { if (e.key === "Enter") announce(false); });
+
+  function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+  function renderChat(comments) {
+    const box = $("chat");
+    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+    box.replaceChildren(...comments.map(c => {
+      const d = el("div", "c " + (c.category || ""));
+      d.append(el("span", "t", c.time), el("span", "n", c.nickname), document.createTextNode(c.text));
+      if (c.category && c.category !== "other") d.append(el("span", "tag", c.category));
+      return d;
+    }));
+    if (atBottom) box.scrollTop = box.scrollHeight;
+  }
+
+  function renderSugs(sugs) {
+    // Only re-render when the list changes, so edits in the text boxes aren't wiped.
+    const key = sugs.map(s => s.id).join(",");
+    $("scount").textContent = sugs.length ? sugs.length + " waiting" : "";
+    if (key === renderedSugIds) return;
+    renderedSugIds = key;
+    const box = $("sugs");
+    if (!sugs.length) { box.replaceChildren(el("div", "empty", "Questions and requests from chat will appear here with a suggested reply.")); return; }
+    const sorted = [...sugs].sort((a, b) => b.priority - a.priority || b.id - a.id);
+    box.replaceChildren(...sorted.map(s => {
+      const d = el("div", "s p" + s.priority);
+      const meta = el("div", "meta");
+      meta.append(el("span", "who", "@" + s.nicknames.join(", @")), document.createTextNode("  ·  " + s.time));
+      if (s.count > 1) meta.append(el("span", "badge", s.count + " asked"));
+      if (s.priority === 3) meta.append(el("span", "badge", "answer now"));
+      const ta = el("textarea"); ta.value = s.reply;
+      const row = el("div", "row");
+      const show = el("button", "primary", "Show on stream");
+      show.onclick = () => post("/api/show", { id: s.id, reply: ta.value });
+      const done = el("button", "ok", "Answered out loud");
+      done.onclick = () => post("/api/answered", { id: s.id });
+      const copy = el("button", "", "Copy");
+      copy.onclick = () => navigator.clipboard.writeText(ta.value);
+      const dis = el("button", "", "Dismiss");
+      dis.onclick = () => post("/api/dismiss", { id: s.id });
+      if (s.safe) row.append(show);
+      row.append(done, copy, dis);
+      d.append(meta, el("div", "q", "“" + s.question + "”"), ta, row);
+      if (!s.safe) d.append(el("div", "unsafe", "⚠ Not shown on stream (flagged as unsafe for the overlay) — you can still answer out loud."));
+      return d;
+    }));
+  }
+
+  function render(st) {
+    $("status").textContent = st.status;
+    $("topic").textContent = st.topic ? "Chat: " + st.topic : "";
+    $("stats").textContent = `${st.stats.comments} comments · ${st.stats.questions} questions · ${st.stats.llm_calls} Claude calls`;
+    $("auto").checked = st.auto_mode;
+    if (!ctxTouched) ctx.value = st.context || "";
+    $("nfile").textContent = "→ notes/" + st.notes_file;
+    renderChat(st.comments);
+    renderSugs(st.suggestions);
+    const f = st.featured, oa = $("onair");
+    oa.classList.toggle("live", !!f);
+    oa.textContent = !f ? "Nothing on screen" : f.kind === "qa" ? `@${f.who}: “${f.question}” → ${f.answer}` : (f.pinned ? "📌 " : "") + f.text;
+    $("notes").replaceChildren(...(st.notes.length ? [...st.notes].reverse().map(n => el("div", "note", n)) : [el("div", "empty", "Claude will add notes here: recurring questions, content ideas, promises you made.")]));
+  }
+
+  function connect() {
+    const ws = new WebSocket(`ws://${location.host}/ws/panel`);
+    ws.onmessage = e => render(JSON.parse(e.data));
+    ws.onclose = () => { $("status").textContent = "panel disconnected, reconnecting…"; setTimeout(connect, 2000); };
+  }
+  connect();
+</script>
+</body>
+</html>

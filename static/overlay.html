@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LIVE Overlay</title>
+<style>
+  /* Transparent background so LIVE Studio only shows the card */
+  html, body { margin: 0; background: transparent; overflow: hidden;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif; }
+  #wrap { position: fixed; left: 24px; right: 24px; top: 140px; display: flex;
+    flex-direction: column; gap: 10px; align-items: flex-start; }
+  /* ?pos=bottom puts it at the bottom instead (TikTok's own chat sits bottom-left on portrait lives) */
+  body.bottom #wrap { top: auto; bottom: 28px; }
+
+  .card { max-width: 640px; background: rgba(14, 14, 20, 0.86); color: #fff;
+    border-radius: 18px; padding: 16px 20px; box-shadow: 0 8px 30px rgba(0,0,0,.35);
+    border-left: 5px solid #fe2c55; backdrop-filter: blur(6px);
+    transform: translateY(30px); opacity: 0; transition: all .45s cubic-bezier(.2,.9,.3,1.2); }
+  .card.show { transform: translateY(0); opacity: 1; }
+  .who { font-size: 15px; font-weight: 700; color: #25f4ee; margin-bottom: 4px; }
+  .q { font-size: 19px; line-height: 1.35; color: #e9e9ee; font-style: italic; }
+  .a { margin-top: 10px; font-size: 22px; line-height: 1.35; font-weight: 600; }
+  .a::before { content: "💬 "; }
+  .announce { font-size: 24px; font-weight: 700; line-height: 1.35; }
+
+  .topic { background: rgba(254, 44, 85, 0.92); color: #fff; font-size: 15px; font-weight: 600;
+    padding: 6px 14px; border-radius: 999px; opacity: 0; transition: opacity .4s; }
+  .topic.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="topic" class="topic"></div>
+  <div id="card" class="card"></div>
+</div>
+<script>
+  const card = document.getElementById("card");
+  const topic = document.getElementById("topic");
+  const params = new URLSearchParams(location.search);
+  const showTopic = params.get("topic") !== "0";   // add ?topic=0 to hide the topic pill
+  if (params.get("pos") === "bottom") document.body.classList.add("bottom");
+  if (params.get("top")) document.getElementById("wrap").style.top = params.get("top") + "px";
+  let lastKey = "";
+
+  function el(tag, cls, text) { const e = document.createElement(tag); e.className = cls; e.textContent = text; return e; }
+
+  function render(state) {
+    const f = state.featured;
+    const key = JSON.stringify(f);
+    if (key !== lastKey) {
+      lastKey = key;
+      card.classList.remove("show");
+      setTimeout(() => {
+        card.replaceChildren();
+        if (!f) return;
+        if (f.kind === "qa") {
+          card.append(el("div", "who", "@" + f.who + " asked"), el("div", "q", "“" + f.question + "”"), el("div", "a", f.answer));
+        } else {
+          card.append(el("div", "announce", f.text));
+        }
+        requestAnimationFrame(() => card.classList.add("show"));
+      }, f ? 250 : 0);
+    }
+    topic.textContent = state.topic ? "Chat: " + state.topic : "";
+    topic.classList.toggle("show", showTopic && !!state.topic);
+  }
+
+  function connect() {
+    const ws = new WebSocket(`ws://${location.host}/ws/overlay`);
+    ws.onmessage = e => render(JSON.parse(e.data));
+    ws.onclose = () => setTimeout(connect, 2000);
+  }
+  connect();
+</script>
+</body>
+</html>
