@@ -53,3 +53,5 @@ If your LIVE Studio version has no web/link source, you can run OBS with this ov
 - The app connects once you're live. Before that it checks every 20 seconds, so you can start it before you go live.
 - Cost: Haiku with 8-second batches costs pennies per stream for most chats. Raise `BATCH_SECONDS` if chat is very busy.
 - Replies are never posted in your TikTok chat automatically. That would mean automating your logged-in account, which goes against TikTok's terms and risks the account.
+
+
