@@ -1,5 +1,5 @@
 *.env
 tklive
-notes/*
+notes/
 .env
 .env.*
